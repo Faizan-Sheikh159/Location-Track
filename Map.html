@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Food & NGO Tracker</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+  
+  <!-- Leaflet JS -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  
+  <!-- Firebase -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-database-compat.js"></script>
+
+  <style>
+    #map { height: 70vh; width: 100%; margin-bottom: 10px; }
+    form { display: flex; flex-direction: column; max-width: 300px; margin: 10px; }
+    input, select, button { margin-bottom: 5px; padding: 5px; }
+  </style>
+</head>
+<body>
+
+<h2>Food & NGO Tracker</h2>
+
+<div id="map"></div>
+
+<form id="locationForm">
+  <input type="text" id="name" placeholder="Name" required>
+  <select id="type">
+    <option value="Restaurant">Restaurant</option>
+    <option value="NGO">NGO</option>
+  </select>
+  <input type="text" id="lat" placeholder="Latitude" readonly required>
+  <input type="text" id="lng" placeholder="Longitude" readonly required>
+  <button type="submit">Add/Update</button>
+</form>
+
+<script>
+  // ====== Firebase Config ======
+  const firebaseConfig = {
+  apiKey: "AIzaSyC32_mxDEhS1aXbAg1-GhsPq75cMZsa8LI",
+  authDomain: "map-tracking-b343c.firebaseapp.com",
+  databaseURL: "https://map-tracking-b343c-default-rtdb.firebaseio.com",
+  projectId: "map-tracking-b343c",
+  storageBucket: "map-tracking-b343c.firebasestorage.app",
+  messagingSenderId: "521242707505",
+  appId: "1:521242707505:web:237280867175afafeb7710",
+  measurementId: "G-ZZQLB1562E"
+};
+  firebase.initializeApp(firebaseConfig);
+  const db = firebase.database();
+
+  // ====== Leaflet Map ======
+  const map = L.map('map').setView([21.1458, 79.0882], 13); // Nagpur center
+
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+  }).addTo(map);
+
+  const markers = {};
+
+  // ====== Marker Icons ======
+  const redIcon = L.icon({
+    iconUrl: 'https://maps.google.com/mapfiles/ms/icons/red-dot.png',
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32]
+  });
+
+  const blueIcon = L.icon({
+    iconUrl: 'https://maps.google.com/mapfiles/ms/icons/blue-dot.png',
+    iconSize: [32, 32],
+    iconAnchor: [16, 32],
+    popupAnchor: [0, -32]
+  });
+
+  // ====== Click on Map to Set Lat/Lng ======
+  map.on('click', function(e) {
+    document.getElementById('lat').value = e.latlng.lat.toFixed(6);
+    document.getElementById('lng').value = e.latlng.lng.toFixed(6);
+  });
+
+  // ====== Real-time Marker Updates ======
+  db.ref('locations').on('value', snapshot => {
+    const data = snapshot.val() || {};
+
+    // Remove old markers
+    for (let id in markers) {
+      if (!data[id]) {
+        map.removeLayer(markers[id]);
+        delete markers[id];
+      }
+    }
+
+    // Add/update markers
+    for (let id in data) {
+      const loc = data[id];
+      const popupText = `<b>${loc.name}</b><br>Type: ${loc.type}`;
+      const icon = loc.type === "Restaurant" ? blueIcon : redIcon;
+
+      if (!markers[id]) {
+        markers[id] = L.marker([loc.lat, loc.lng], {icon}).addTo(map).bindPopup(popupText);
+      } else {
+        markers[id].setLatLng([loc.lat, loc.lng])
+                  .setIcon(icon)
+                  .getPopup().setContent(popupText);
+      }
+    }
+  });
+
+  // ====== Form Submission ======
+  document.getElementById('locationForm').addEventListener('submit', e => {
+    e.preventDefault();
+
+    const name = document.getElementById('name').value.trim();
+    const type = document.getElementById('type').value;
+    const lat = parseFloat(document.getElementById('lat').value);
+    const lng = parseFloat(document.getElementById('lng').value);
+
+    if (!name || isNaN(lat) || isNaN(lng)) return;
+
+    const newKey = name.toLowerCase().replace(/\s+/g, "_");
+
+    db.ref('locations/' + newKey).set({
+      name: name,
+      type: type,
+      lat: lat,
+      lng: lng
+    });
+
+    e.target.reset();
+  });
+</script>
+
+</body>
+</html>
